@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voronoi Simulation</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+      font-family: Arial, sans-serif;
+      color: #333;
+    }
+    canvas {
+      border: 1px solid #000;
+    }
+    #instructions {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      font-size: 14px;
+      max-width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <div id="instructions">
+    <h4>Instructions:</h4>
+    <ul>
+      <li><strong>Player Button:</strong> Click to add a player at the mouse position. The player moves towards the cursor.</li>
+      <li><strong>Start Simulation:</strong> Click to start the simulation. Enemies will chase the player.</li>
+      <li><strong>Pause Simulation:</strong> Click to pause the simulation and stop the movement.</li>
+      <li><strong>Add Enemy Points:</strong> Left-click to add enemy points. These points chase the player when in their Voronoi region.</li>
+      <li><strong>Remove Enemy Points:</strong> Right-click on an enemy point to remove it.</li>
+    </ul>
+  </div>
+
+  <script>
+    let enemyPoints = [];
+    let playerPoint;
+    let playerButtonPressed = false;
+    let startPauseButtonPressed = false;
+    let simulationRunning = false;  // Variable to keep track of simulation state
+
+    // Speeds for player and enemies
+    let v1 = 10;  // Player speed
+    let v2 = 2;  // Enemy speed
+
+    function setup() {
+      createCanvas(800, 600);
+      playerPoint = null;  // No player point initially
+    }
+
+    function draw() {
+      background(255);
+
+      if (simulationRunning) {
+        // Player follows cursor
+        if (playerPoint != null) {
+          let direction = createVector(mouseX, mouseY).sub(playerPoint);
+          direction.setMag(v1);
+          playerPoint.add(direction);
+        }
+
+        // Move enemies toward player if in their Voronoi region
+        for (let enemy of enemyPoints) {
+          let minDist = Infinity;
+          let closestPointIndex = -1;
+
+          // Find the nearest enemy point to the player
+          for (let i = 0; i < enemyPoints.length; i++) {
+            let distToPlayer = dist(playerPoint.x, playerPoint.y, enemyPoints[i].x, enemyPoints[i].y);
+            if (distToPlayer < minDist) {
+              minDist = distToPlayer;
+              closestPointIndex = i;
+            }
+          }
+
+          // If this enemy is the closest to the player, chase the player
+          if (closestPointIndex !== -1) {
+            let dir = createVector(playerPoint.x, playerPoint.y).sub(enemyPoints[closestPointIndex]);
+            dir.setMag(v2);
+            enemyPoints[closestPointIndex].add(dir);
+          }
+        }
+      }
+
+      // Draw Voronoi diagram
+      loadPixels();
+      for (let x = 0; x < width; x++) {
+        for (let y = 0; y < height; y++) {
+          let minDist = Infinity;
+          let closestPointIndex = -1;
+
+          // Find the nearest enemy point to (x, y)
+          for (let i = 0; i < enemyPoints.length; i++) {
+            let distToPoint = dist(x, y, enemyPoints[i].x, enemyPoints[i].y);
+            if (distToPoint < minDist) {
+              minDist = distToPoint;
+              closestPointIndex = i;
+            }
+          }
+
+          // Color the pixel based on the closest enemy point
+          if (closestPointIndex !== -1) {
+            let col = color(50 + closestPointIndex * 30, 100 + closestPointIndex * 20, 150 + closestPointIndex * 10);
+            set(x, y, col);
+          }
+        }
+      }
+      updatePixels();
+
+      // Draw enemy points
+      fill(0);
+      noStroke();
+      for (let point of enemyPoints) {
+        ellipse(point.x, point.y, 10, 10);
+      }
+
+      // Draw the player point (if it exists)
+      if (playerPoint != null) {
+        fill(255, 0, 0);  // Red color for the player
+        ellipse(playerPoint.x, playerPoint.y, 15, 15);
+      }
+
+      // Draw buttons
+      fill(200);
+      rect(width - 150, height - 50, 130, 30);  // Player Button
+      rect(width - 150, height - 100, 130, 30);  // Start/Pause Button
+
+      fill(0);
+      textAlign(CENTER, CENTER);
+      text("Player Button", width - 85, height - 35);
+      if (simulationRunning) {
+        text("Pause Simulation", width - 85, height - 85);
+      } else {
+        text("Start Simulation", width - 85, height - 85);
+      }
+    }
+
+    function mousePressed() {
+      // Check if the mouse is inside the "Player Button"
+      if (mouseX >= width - 150 && mouseX <= width - 20 && mouseY >= height - 50 && mouseY <= height - 20) {
+        playerButtonPressed = true;
+      } 
+      // Check if the mouse is inside the "Start/Pause Button"
+      else if (mouseX >= width - 150 && mouseX <= width - 20 && mouseY >= height - 100 && mouseY <= height - 70) {
+        startPauseButtonPressed = true;
+      }
+      else if (playerButtonPressed) {
+        // Add a player point at the mouse position
+        playerPoint = createVector(mouseX, mouseY);
+        playerButtonPressed = false;
+      } else if (startPauseButtonPressed) {
+        // Toggle start/pause when the start/pause button is clicked
+        simulationRunning = !simulationRunning;  // Toggle the simulation state
+        startPauseButtonPressed = false;
+      } else if (mouseButton === RIGHT) {
+        // Right-click: remove an enemy point if clicked near it
+        for (let i = 0; i < enemyPoints.length; i++) {
+          let enemy = enemyPoints[i];
+          if (dist(mouseX, mouseY, enemy.x, enemy.y) < 15) { // Threshold of 15 for clicking near enemy
+            enemyPoints.splice(i, 1);
+            break;  // Stop after removing one enemy point
+          }
+        }
+      } else {
+        // Add an enemy point at the mouse position (left click)
+        enemyPoints.push(createVector(mouseX, mouseY));
+      }
+    }
+  </script>
+</body>
+</html>
